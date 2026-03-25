@@ -14,7 +14,8 @@ class AlgoritmRepository(BaseRepository):
     def get_all(self):
         with self.db_manager.get_connection() as conn:
             rows = conn.execute("SELECT * FROM Algoritm ORDER BY id_algoritm").fetchall()
-            return [Algoritm(**dict(row)) for row in rows]
+            allowed = {'id_algoritm', 'nume', 'tip'}
+            return [Algoritm(**{k: v for k, v in dict(row).items() if k in allowed}) for row in rows]
 
     def get_by_id(self, id_algoritm: int):
         with self.db_manager.get_connection() as conn:

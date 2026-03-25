@@ -1,13 +1,13 @@
 CREATE TABLE IF NOT EXISTS Algoritm (
     id_algoritm INTEGER PRIMARY KEY AUTOINCREMENT,
-    nume TEXT NOT NULL,
+    nume TEXT NOT NULL UNIQUE,
     tip TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Cheie (
     id_cheie INTEGER PRIMARY KEY AUTOINCREMENT,
     id_algoritm INTEGER NOT NULL,
-    nume_cheie TEXT NOT NULL,
+    nume_cheie TEXT NOT NULL UNIQUE,
     tip_cheie TEXT NOT NULL,
     dimensiune_cheie INTEGER NOT NULL,
     locatie_cheie TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS Cheie (
 
 CREATE TABLE IF NOT EXISTS Fisier (
     id_fisier INTEGER PRIMARY KEY AUTOINCREMENT,
-    nume_fisier TEXT NOT NULL,
+    nume_fisier TEXT NOT NULL UNIQUE,
     cale_fisier TEXT NOT NULL,
     hash_initial TEXT NOT NULL,
     dimensiune INTEGER NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS Fisier (
 
 CREATE TABLE IF NOT EXISTS Framework (
     id_framework INTEGER PRIMARY KEY AUTOINCREMENT,
-    nume TEXT NOT NULL,
+    nume TEXT NOT NULL UNIQUE,
     versiune TEXT NOT NULL,
     limbaj_programare TEXT NOT NULL
 );
