@@ -51,7 +51,7 @@ class TestDatabaseCRUD(unittest.TestCase):
 
             alg_repo = AlgoritmRepository(db_manager)
 
-            algoritm = Algoritm(None, "AES", "simetric", "CBC")
+            algoritm = Algoritm(None, "AES", "simetric")
             algoritm_id = alg_repo.insert(algoritm)
             self.assertIsInstance(algoritm_id, int)
 
@@ -84,7 +84,7 @@ class TestDatabaseCRUD(unittest.TestCase):
             alg_repo = AlgoritmRepository(db_manager)
             cheie_repo = CheieRepository(db_manager)
 
-            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric", None))
+            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric"))
 
             cheie = Cheie(
                 None,
@@ -221,7 +221,7 @@ class TestDatabaseCRUD(unittest.TestCase):
             framework_repo = FrameworkRepository(db_manager)
             operatie_repo = OperatieRepository(db_manager)
 
-            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric", None))
+            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric"))
             cheie_id = cheie_repo.insert(
                 Cheie(None, algoritm_id, "rsa_key", "privata", 2048, "/keys/rsa.pem", "2026-03-24", "activa")
             )
@@ -291,7 +291,7 @@ class TestDatabaseCRUD(unittest.TestCase):
             operatie_repo = OperatieRepository(db_manager)
             performanta_repo = PerformantaRepository(db_manager)
 
-            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric", None))
+            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric"))
             cheie_id = cheie_repo.insert(
                 Cheie(None, algoritm_id, "rsa_key", "privata", 2048, "/keys/rsa.pem", "2026-03-24", "activa")
             )
@@ -355,7 +355,7 @@ class TestDatabaseCRUD(unittest.TestCase):
             alg_repo = AlgoritmRepository(db_manager)
             cheie_repo = CheieRepository(db_manager)
 
-            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric", None))
+            algoritm_id = alg_repo.insert(Algoritm(None, "RSA", "asimetric"))
 
             cheie = Cheie(
                 None,
