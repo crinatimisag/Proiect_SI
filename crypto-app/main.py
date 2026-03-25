@@ -1,5 +1,6 @@
 from config import DB_PATH, SCHEMA_PATH
 from database.db_manager import DBManager
+from ui.gui import CryptoAppUI
 
 
 def build_context():
@@ -14,6 +15,8 @@ def build_context():
 def main():
     app_context = build_context()
     print("Tabelele au fost create.")
+    app = CryptoAppUI(app_context)
+    app.mainloop()
 
 if __name__ == '__main__':
     main()

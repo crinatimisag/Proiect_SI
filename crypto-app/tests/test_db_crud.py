@@ -52,12 +52,11 @@ class TestDatabaseCRUD(unittest.TestCase):
             self.assertEqual(algoritm_din_db.nume, "AES")
             self.assertEqual(algoritm_din_db.tip, "simetric")
 
-            algoritm_actualizat = Algoritm(algoritm_id, "AES-256", "simetric", "GCM")
+            algoritm_actualizat = Algoritm(algoritm_id, "AES-256", "simetric")
             self.assertTrue(alg_repo.update(algoritm_actualizat))
 
             dupa_update = alg_repo.get_by_id(algoritm_id)
             self.assertEqual(dupa_update.nume, "AES-256")
-            self.assertEqual(dupa_update.mod_operare, "GCM")
 
             self.assertTrue(alg_repo.delete(algoritm_id))
             self.assertIsNone(alg_repo.get_by_id(algoritm_id))

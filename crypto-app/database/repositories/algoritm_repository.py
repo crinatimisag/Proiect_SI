@@ -6,8 +6,8 @@ class AlgoritmRepository(BaseRepository):
     def insert(self, algoritm: Algoritm) -> int:
         with self.db_manager.get_connection() as conn:
             rezultat = conn.execute(
-                "INSERT INTO Algoritm (nume, tip, mod_operare) VALUES (?, ?, ?)",
-                (algoritm.nume, algoritm.tip, algoritm.mod_operare),
+                "INSERT INTO Algoritm (nume, tip) VALUES (?, ?)",
+                (algoritm.nume, algoritm.tip),
             )
             return rezultat.lastrowid
 
@@ -29,8 +29,8 @@ class AlgoritmRepository(BaseRepository):
     def update(self, algoritm: Algoritm) -> bool:
         with self.db_manager.get_connection() as conn:
             rezultat = conn.execute(
-                "UPDATE Algoritm SET nume = ?, tip = ?, mod_operare = ? WHERE id_algoritm = ?",
-                (algoritm.nume, algoritm.tip, algoritm.mod_operare, algoritm.id_algoritm),
+                "UPDATE Algoritm SET nume = ?, tip = ? WHERE id_algoritm = ?",
+                (algoritm.nume, algoritm.tip, algoritm.id_algoritm),
             )
             return rezultat.rowcount > 0
 

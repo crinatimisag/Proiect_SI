@@ -1,8 +1,7 @@
 CREATE TABLE IF NOT EXISTS Algoritm (
     id_algoritm INTEGER PRIMARY KEY AUTOINCREMENT,
     nume TEXT NOT NULL,
-    tip TEXT NOT NULL,
-    mod_operare TEXT
+    tip TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Cheie (
