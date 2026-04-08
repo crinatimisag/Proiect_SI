@@ -1,249 +1,234 @@
-
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 from tkinter import ttk
+from datetime import datetime
 
+from models.algoritm import Algoritm
+from models.cheie import Cheie
+from models.fisier import Fisier
+from models.framework_model import FrameworkModel
+from models.operatie import Operatie
+from models.performanta import Performanta
 
-
+from database.repositories.algoritm_repository import AlgoritmRepository
+from database.repositories.cheie_repository import CheieRepository
+from database.repositories.fisier_repository import FisierRepository
+from database.repositories.framework_repository import FrameworkRepository
+from database.repositories.operatie_repository import OperatieRepository
+from database.repositories.performanta_repository import PerformantaRepository
 
 class CryptoAppUI(tk.Tk):
     def __init__(self, app_context):
         super().__init__()
         self.app_context = app_context
-        self.title('Crypto App')
-        self.geometry('480x330')
-        self.bg_color = '#ffffff'
-        self.configure(bg=self.bg_color)
+        self.db_manager = app_context['db_manager']
+        
+        self.alg_repo = AlgoritmRepository(self.db_manager)
+        self.cheie_repo = CheieRepository(self.db_manager)
+        self.fisier_repo = FisierRepository(self.db_manager)
+        self.framework_repo = FrameworkRepository(self.db_manager)
+        self.operatie_repo = OperatieRepository(self.db_manager)
+        self.perf_repo = PerformantaRepository(self.db_manager)
+
+        self.title('Crypto App Professional')
+        self.geometry('1100x700')
+        self.bg_main = '#f0f0f0'
+        self.configure(bg=self.bg_main)
+        
         self.style = ttk.Style(self)
         self.style.theme_use('clam')
-        self.style.configure('TFrame', background=self.bg_color)
-        self.style.configure('TLabel', background=self.bg_color, foreground='#222', font=('Segoe UI', 11))
-        self.style.configure('TButton', font=('Segoe UI', 10), padding=4)
-        self.style.configure('TEntry', font=('Segoe UI', 10))
+        
+        self.style.configure('TFrame', background=self.bg_main)
+        self.style.configure('TLabel', background=self.bg_main, font=('Segoe UI', 10))
+        self.style.configure('TLabelframe', background=self.bg_main)
+        self.style.configure('TLabelframe.Label', background=self.bg_main, font=('Segoe UI', 10, 'bold'))
+        self.style.configure('TNotebook', background=self.bg_main)
+        self.style.configure('TNotebook.Tab', background='#e1e1e1')
+        
+        self.style.configure('Action.TButton', font=('Segoe UI', 10), padding=(10, 5))
+        
         self.create_tabs()
 
-    def add_key(self):
-        messagebox.showinfo('Info', 'Key added (placeholder)')
-
     def create_tabs(self):
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill='both', expand=True, padx=10, pady=10)
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
 
-        tab_rapid = ttk.Frame(notebook)
-        notebook.add(tab_rapid, text='Rapid')
-        self.create_rapid_tab(tab_rapid)
+        # Tab-uri cu prima literă mare
+        self.tab_names = ["Rapid", "Algoritmi", "Chei", "Fisiere", "Frameworks", "Operatii", "Performanta"]
+        self.frames = {}
+        for name in self.tab_names:
+            self.frames[name] = ttk.Frame(self.notebook)
+            self.notebook.add(self.frames[name], text=name)
 
-        tab_alg = ttk.Frame(notebook)
-        notebook.add(tab_alg, text='Algoritm')
-        self.create_algoritm_tab(tab_alg)
+        self.create_rapid_tab(self.frames["Rapid"])
+        self.setup_generic_tab(self.frames["Algoritmi"], "Algoritm", ["Nume", "Tip"], self.alg_repo, self.refresh_alg)
+        self.setup_generic_tab(self.frames["Chei"], "Cheie", ["Algoritm", "Nume", "Tip", "Dim", "Locatie", "Status"], self.cheie_repo, self.refresh_cheie)
+        self.setup_generic_tab(self.frames["Fisiere"], "Fisier", ["Nume", "Cale", "Hash", "Dimensiune", "Status"], self.fisier_repo, self.refresh_fisier)
+        self.setup_generic_tab(self.frames["Frameworks"], "Framework", ["Nume", "Versiune", "Limbaj"], self.framework_repo, self.refresh_framework)
+        self.setup_generic_tab(self.frames["Operatii"], "Operatie", ["FisID", "KeyID", "AlgID", "Tip", "Status"], self.operatie_repo, self.refresh_operatie, readonly_insert=True)
+        self.setup_generic_tab(self.frames["Performanta"], "Performanta", ["OpID", "Timp(ms)", "Mem(KB)", "Input"], self.perf_repo, self.refresh_perf, readonly_insert=True)
 
-        tab_cheie = ttk.Frame(notebook)
-        notebook.add(tab_cheie, text='Cheie')
-        self.create_cheie_tab(tab_cheie)
-
-        tab_fisier = ttk.Frame(notebook)
-        notebook.add(tab_fisier, text='Fisier')
-        self.create_fisier_tab(tab_fisier)
-
-        tab_framework = ttk.Frame(notebook)
-        notebook.add(tab_framework, text='Framework')
-        self.create_framework_tab(tab_framework)
-
-        tab_operatie = ttk.Frame(notebook)
-        notebook.add(tab_operatie, text='Operatie')
-        self.create_operatie_tab(tab_operatie)
-
-        tab_perf = ttk.Frame(notebook)
-        notebook.add(tab_perf, text='Performanta')
-        self.create_performanta_tab(tab_perf)
-
+        self.refresh_all()
 
     def create_rapid_tab(self, parent):
-        frame = ttk.Frame(parent)
-        frame.pack(fill='both', expand=True, padx=20, pady=20)
+        outer_frame = ttk.Frame(parent)
+        outer_frame.place(relx=0.5, rely=0.4, anchor='center')
 
-        ttk.Label(frame, text='Crypto App', font=('Segoe UI', 15, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0, 18))
+        ttk.Label(outer_frame, text='Crypto App', font=('Segoe UI', 16, 'bold')).grid(row=0, column=0, columnspan=2, pady=(0, 30))
 
-        db_manager = self.app_context['db_manager']
-        from database.repositories.algoritm_repository import AlgoritmRepository
-        from database.repositories.cheie_repository import CheieRepository
-        from database.repositories.fisier_repository import FisierRepository
-        self.alg_repo = AlgoritmRepository(db_manager)
-        self.cheie_repo = CheieRepository(db_manager)
-        self.fisier_repo = FisierRepository(db_manager)
+        selection_frame = ttk.LabelFrame(outer_frame, text=" ", padding=20)
+        selection_frame.grid(row=1, column=0, columnspan=2, sticky='nsew')
 
-        self.algoritmi = self.alg_repo.get_all()
-        self.chei = self.cheie_repo.get_all()
-        self.fisiere = self.fisier_repo.get_all()
+        ttk.Label(selection_frame, text='Algoritm:').grid(row=0, column=0, sticky='e', padx=10, pady=10)
+        self.combo_alg_rapid = ttk.Combobox(selection_frame, width=45, state="readonly")
+        self.combo_alg_rapid.grid(row=0, column=1, padx=10, pady=10)
 
-        self.alg_names = [a.nume for a in self.algoritmi]
-        self.cheie_names = [c.nume_cheie for c in self.chei]
-        self.fisier_names = [f.nume_fisier for f in self.fisiere]
+        ttk.Label(selection_frame, text='Cheie:').grid(row=1, column=0, sticky='e', padx=10, pady=10)
+        self.combo_key_rapid = ttk.Combobox(selection_frame, width=45, state="readonly")
+        self.combo_key_rapid.grid(row=1, column=1, padx=10, pady=10)
 
-        ttk.Label(frame, text='Algorithm:').grid(row=1, column=0, sticky='e', padx=5, pady=5)
-        self.alg_var = tk.StringVar()
-        self.alg_menu = ttk.Combobox(frame, textvariable=self.alg_var, values=self.alg_names, width=18)
-        self.alg_menu.grid(row=1, column=1, sticky='w', padx=5, pady=5)
-        self.alg_menu.bind('<KeyRelease>', lambda e: self._filter_dropdown(self.alg_menu, self.alg_names))
+        ttk.Label(selection_frame, text='Fișier:').grid(row=2, column=0, sticky='e', padx=10, pady=10)
+        self.combo_fisier_rapid = ttk.Combobox(selection_frame, width=45, state="readonly")
+        self.combo_fisier_rapid.grid(row=2, column=1, padx=10, pady=10)
 
-        ttk.Label(frame, text='Key:').grid(row=2, column=0, sticky='e', padx=5, pady=5)
-        self.key_var = tk.StringVar()
-        self.key_menu = ttk.Combobox(frame, textvariable=self.key_var, values=self.cheie_names, width=18)
-        self.key_menu.grid(row=2, column=1, sticky='w', padx=5, pady=5)
-        self.key_menu.bind('<KeyRelease>', lambda e: self._filter_dropdown(self.key_menu, self.cheie_names))
-        ttk.Button(frame, text='Add Key', command=self.add_key).grid(row=2, column=2, sticky='w', padx=5, pady=5)
+        btn_container = ttk.Frame(outer_frame)
+        btn_container.grid(row=2, column=0, columnspan=2, pady=30)
+        
+        ttk.Button(btn_container, text='🔒 Criptează', command=self.encrypt_file, width=20, style='Action.TButton').pack(side='left', padx=15)
+        ttk.Button(btn_container, text='🔓 Decriptează', command=self.decrypt_file, width=20, style='Action.TButton').pack(side='left', padx=15)
 
-        ttk.Label(frame, text='File:').grid(row=3, column=0, sticky='e', padx=5, pady=5)
-        self.file_var = tk.StringVar()
-        self.file_menu = ttk.Combobox(frame, textvariable=self.file_var, values=self.fisier_names, width=18)
-        self.file_menu.grid(row=3, column=1, sticky='w', padx=5, pady=5)
-        self.file_menu.bind('<KeyRelease>', lambda e: self._filter_dropdown(self.file_menu, self.fisier_names))
+    def setup_generic_tab(self, parent, entity_name, fields, repo, refresh_callback, readonly_insert=False):
+        main_frame = ttk.Frame(parent)
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
 
-        self.file_label = ttk.Label(frame, text='No file selected', foreground='#888')
-        self.file_label.grid(row=4, column=0, columnspan=3, sticky='w', padx=5, pady=(0, 10))
+        list_frame = ttk.Frame(main_frame)
+        list_frame.pack(side='left', fill='both', expand=True)
+        
+        cols = ('ID',) + tuple(fields)
+        tree = ttk.Treeview(list_frame, columns=cols, show='headings')
+        for col in cols:
+            tree.heading(col, text=col)
+            tree.column(col, width=100, anchor='center')
+        tree.pack(side='left', fill='both', expand=True)
+        
+        sb = ttk.Scrollbar(list_frame, orient="vertical", command=tree.yview)
+        sb.pack(side='right', fill='y')
+        tree.configure(yscrollcommand=sb.set)
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.grid(row=5, column=0, columnspan=3, pady=10)
-        ttk.Button(btn_frame, text='Encrypt', command=self.encrypt_file, width=12).pack(side='left', padx=6)
-        ttk.Button(btn_frame, text='Decrypt', command=self.decrypt_file, width=12).pack(side='left', padx=6)
-        ttk.Button(btn_frame, text='Analyze Performance', command=self.analyze_performance, width=18).pack(side='left', padx=6)
+        right_container = ttk.Frame(main_frame, width=300)
+        right_container.pack(side='right', fill='y', padx=(15, 0))
+        
+        form_wrapper = ttk.Frame(right_container)
+        form_wrapper.place(relx=0.5, rely=0.3, anchor='n')
 
-    def _filter_dropdown(self, combobox, full_list):
-        value = combobox.get().lower()
-        filtered = [item for item in full_list if value in item.lower()]
-        combobox['values'] = filtered if filtered else full_list
+        # Titlu Labelframe cu prima literă mare
+        lbl_frame = ttk.LabelFrame(form_wrapper, text=f" Detalii {entity_name.lower()} ", padding=15)
+        lbl_frame.pack(fill='x')
 
-
-    def create_algoritm_tab(self, parent):
-        frame = ttk.Frame(parent)
-        frame.pack(fill='both', expand=True, padx=10, pady=10)
-
-        ttk.Label(frame, text='Algoritm', font=('Segoe UI', 13, 'bold')).grid(row=0, column=0, columnspan=3, pady=(0, 10))
-
-        self.alg_listbox = tk.Listbox(frame, width=28, height=7)
-        self.alg_listbox.grid(row=1, column=0, rowspan=4, padx=(0, 12), pady=5, sticky='ns')
-        self.alg_listbox.bind('<<ListboxSelect>>', self._on_alg_select)
-
-        ttk.Label(frame, text='Nume:').grid(row=1, column=1, sticky='e', padx=2, pady=2)
-        self.alg_nume_var = tk.StringVar()
-        self.alg_nume_entry = ttk.Entry(frame, textvariable=self.alg_nume_var, width=18)
-        self.alg_nume_entry.grid(row=1, column=2, sticky='w', padx=2, pady=2)
-
-        ttk.Label(frame, text='Tip:').grid(row=2, column=1, sticky='e', padx=2, pady=2)
-        self.alg_tip_var = tk.StringVar()
-        self.alg_tip_combo = ttk.Combobox(frame, textvariable=self.alg_tip_var, values=["Simetric", "Asimetric", "Hash", "Stream", "Block"], width=16, state='readonly')
-        self.alg_tip_combo.grid(row=2, column=2, sticky='w', padx=2, pady=2)
-
-        ttk.Button(frame, text='Adaugă', command=self._add_algoritm).grid(row=3, column=1, padx=2, pady=6, sticky='e')
-        ttk.Button(frame, text='Editează', command=self._edit_algoritm).grid(row=3, column=2, padx=2, pady=6, sticky='w')
-        ttk.Button(frame, text='Șterge', command=self._delete_algoritm).grid(row=4, column=1, columnspan=2, pady=2)
-
-        self._refresh_alg_list()
-
-    def _refresh_alg_list(self):
-        if not hasattr(self, 'alg_repo'):
-            from database.repositories.algoritm_repository import AlgoritmRepository
-            self.alg_repo = AlgoritmRepository(self.app_context['db_manager'])
-        self.algoritmi = self.alg_repo.get_all()
-        self.alg_listbox.delete(0, tk.END)
-        for alg in self.algoritmi:
-            self.alg_listbox.insert(tk.END, f"{alg.nume} ({alg.tip})")
-        self._clear_alg_fields()
-        self.alg_selected_index = None
-
-    def _clear_alg_fields(self):
-        self.alg_nume_var.set("")
-        self.alg_tip_var.set("")
-        self.alg_selected_index = None
-
-    def _on_alg_select(self, event):
-        selection = self.alg_listbox.curselection()
-        if selection:
-            idx = selection[0]
-            alg = self.algoritmi[idx]
-            self.alg_nume_var.set(alg.nume)
-            self.alg_tip_var.set(alg.tip)
-            self.alg_selected_index = idx
-        else:
-            self._clear_alg_fields()
-
-    def _add_algoritm(self):
-        nume = self.alg_nume_var.get().strip()
-        tip = self.alg_tip_var.get().strip()
-        if not nume or not tip:
-            messagebox.showwarning('Atenție', 'Completează toate câmpurile!')
-            return
-        from models.algoritm import Algoritm
-        alg = Algoritm(id_algoritm=None, nume=nume, tip=tip)
-        try:
-            self.alg_repo.insert(alg)
-        except Exception as e:
-            if 'UNIQUE constraint failed' in str(e):
-                messagebox.showerror('Eroare', 'Există deja un algoritm cu acest nume!')
-                return
+        vars_dict = {}
+        for i, field in enumerate(fields):
+            ttk.Label(lbl_frame, text=f"{field}:").grid(row=i, column=0, sticky='e', pady=5, padx=5)
+            
+            if entity_name == "Cheie" and field == "Algoritm":
+                v = tk.StringVar()
+                cb = ttk.Combobox(lbl_frame, textvariable=v, state="readonly", width=22)
+                cb.grid(row=i, column=1, pady=5, padx=5)
+                vars_dict[field] = v
+                self.cheie_alg_combo = cb
             else:
-                messagebox.showerror('Eroare', f'Eroare la inserare: {e}')
-                return
-        self._refresh_alg_list()
+                v = tk.StringVar()
+                ttk.Entry(lbl_frame, textvariable=v, width=25).grid(row=i, column=1, pady=5, padx=5)
+                vars_dict[field] = v
 
-    def _edit_algoritm(self):
-        if self.alg_selected_index is None:
-            messagebox.showwarning('Atenție', 'Selectează un algoritm din listă!')
-            return
-        nume = self.alg_nume_var.get().strip()
-        tip = self.alg_tip_var.get().strip()
-        if not nume or not tip:
-            messagebox.showwarning('Atenție', 'Completează toate câmpurile!')
-            return
-        from models.algoritm import Algoritm
-        alg = self.algoritmi[self.alg_selected_index]
-        alg.nume = nume
-        alg.tip = tip
+        btn_frame = ttk.Frame(form_wrapper)
+        btn_frame.pack(fill='x', pady=20)
+
+        def get_sid():
+            item = tree.selection()
+            return tree.item(item)['values'][0] if item else None
+
+        if not readonly_insert:
+            ttk.Button(btn_frame, text="➕ Adaugă", style='Action.TButton', 
+                       command=lambda: self.handle_crud(entity_name, vars_dict, repo, "add")).pack(fill='x', pady=3)
+
+        ttk.Button(btn_frame, text="📝 Update", style='Action.TButton',
+                   command=lambda: self.handle_crud(entity_name, vars_dict, repo, "upd", get_sid())).pack(fill='x', pady=3)
+        ttk.Button(btn_frame, text="🗑️ Șterge", style='Action.TButton',
+                   command=lambda: self.handle_crud(entity_name, vars_dict, repo, "del", get_sid())).pack(fill='x', pady=3)
+        
+        tree.bind('<<TreeviewSelect>>', lambda e: self.populate_form(tree, vars_dict, entity_name))
+        setattr(self, f"tree_{entity_name.lower()}", tree)
+
+    def handle_crud(self, entity, vars_dict, repo, action, sid=None):
+        vals = [v.get() for v in vars_dict.values()]
         try:
-            self.alg_repo.update(alg)
-        except Exception as e:
-            if 'UNIQUE constraint failed' in str(e):
-                messagebox.showerror('Eroare', 'Există deja un algoritm cu acest nume!')
-                return
+            if action == "del":
+                if sid and messagebox.askyesno("Confirmare", "Ștergeți înregistrarea?"): 
+                    repo.delete(sid)
             else:
-                messagebox.showerror('Eroare', f'Eroare la actualizare: {e}')
-                return
-        self._refresh_alg_list()
+                if entity == "Cheie":
+                    alg_id = int(vals[0].split(":")[0])
+                    obj = Cheie(sid, alg_id, vals[1], vals[2], int(vals[3]), vals[4], str(datetime.now()), vals[5])
+                elif entity == "Algoritm": obj = Algoritm(sid, *vals)
+                elif entity == "Fisier": obj = Fisier(sid, vals[0], vals[1], vals[2], int(vals[3]), str(datetime.now()), vals[4])
+                elif entity == "Framework": obj = FrameworkModel(sid, vals[0], vals[1], vals[2])
+                
+                if action == "add": repo.insert(obj)
+                else: repo.update(obj)
+            self.refresh_all()
+        except Exception as e: messagebox.showerror("Eroare", str(e))
 
-    def _delete_algoritm(self):
-        if self.alg_selected_index is None:
-            messagebox.showwarning('Atenție', 'Selectează un algoritm din listă!')
-            return
-        alg = self.algoritmi[self.alg_selected_index]
-        if messagebox.askyesno('Confirmare', f'Sigur vrei să ștergi algoritmul "{alg.nume}"?'):
-            self.alg_repo.delete(alg.id_algoritm)
-            self._refresh_alg_list()
+    def populate_form(self, tree, vars_dict, entity_name):
+        item = tree.selection()
+        if not item: return
+        vals = tree.item(item)['values'][1:]
+        for (field, var), val in zip(vars_dict.items(), vals):
+            if entity_name == "Cheie" and field == "Algoritm":
+                for choice in self.cheie_alg_combo['values']:
+                    if choice.startswith(f"{val}:"):
+                        var.set(choice)
+                        break
+            else: var.set(val)
 
-    def create_cheie_tab(self, parent):
-        ttk.Label(parent, text='Cheie').pack(pady=10)
+    def encrypt_file(self): messagebox.showinfo("Info", "Criptare finalizată.")
+    def decrypt_file(self): messagebox.showinfo("Info", "Decriptare finalizată.")
 
-    def create_fisier_tab(self, parent):
-        ttk.Label(parent, text='Fisier').pack(pady=10)
+    def refresh_alg(self, t):
+        t.delete(*t.get_children())
+        algs = self.alg_repo.get_all()
+        choices = [f"{a.id_algoritm}: {a.nume}" for a in algs]
+        for a in algs: t.insert('', 'end', values=(a.id_algoritm, a.nume, a.tip))
+        self.combo_alg_rapid['values'] = choices
+        if hasattr(self, 'cheie_alg_combo'): self.cheie_alg_combo['values'] = choices
 
-    def create_framework_tab(self, parent):
-        ttk.Label(parent, text='Framework').pack(pady=10)
+    def refresh_cheie(self, t):
+        t.delete(*t.get_children())
+        keys = self.cheie_repo.get_all()
+        for c in keys: t.insert('', 'end', values=(c.id_cheie, c.id_algoritm, c.nume_cheie, c.tip_cheie, c.dimensiune_cheie, c.locatie_cheie, c.status))
+        self.combo_key_rapid['values'] = [f"{c.id_cheie}: {c.nume_cheie}" for c in keys]
 
-    def create_operatie_tab(self, parent):
-        ttk.Label(parent, text='Operatie').pack(pady=10)
+    def refresh_fisier(self, t):
+        t.delete(*t.get_children())
+        fisiere = self.fisier_repo.get_all()
+        for f in fisiere: t.insert('', 'end', values=(f.id_fisier, f.nume_fisier, f.cale_fisier, f.hash_initial, f.dimensiune, f.status))
+        self.combo_fisier_rapid['values'] = [f"{f.id_fisier}: {f.nume_fisier}" for f in fisiere]
 
-    def create_performanta_tab(self, parent):
-        ttk.Label(parent, text='Performanta').pack(pady=10)
+    def refresh_framework(self, t):
+        t.delete(*t.get_children())
+        for f in self.framework_repo.get_all(): t.insert('', 'end', values=(f.id_framework, f.nume, f.versiune, f.limbaj_programare))
 
-    def browse_file(self):
-        file_path = filedialog.askopenfilename()
-        if file_path:
-            self.file_label.config(text=file_path)
+    def refresh_operatie(self, t):
+        t.delete(*t.get_children())
+        for o in self.operatie_repo.get_all(): t.insert('', 'end', values=(o.id_operatie, o.id_fisier, o.id_cheie, o.id_algoritm, o.tip_operatie, o.status))
 
-    def encrypt_file(self):
-        messagebox.showinfo('Info', 'File encrypted')
+    def refresh_perf(self, t):
+        t.delete(*t.get_children())
+        for p in self.perf_repo.get_all(): t.insert('', 'end', values=(p.id_performanta, p.id_operatie, p.timp_executie_ms, p.memorie_kb, p.dimensiune_input))
 
-    def decrypt_file(self):
-        messagebox.showinfo('Info', 'File decrypted')
-
-    def analyze_performance(self):
-        messagebox.showinfo('Info', 'Performance analyzed')
+    def refresh_all(self):
+        self.refresh_alg(self.tree_algoritm)
+        self.refresh_cheie(self.tree_cheie)
+        self.refresh_fisier(self.tree_fisier)
+        self.refresh_framework(self.tree_framework)
+        self.refresh_operatie(self.tree_operatie)
+        self.refresh_perf(self.tree_performanta)
