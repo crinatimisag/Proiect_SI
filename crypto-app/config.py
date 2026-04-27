@@ -7,6 +7,12 @@ KEYS_DIR = BASE_DIR / "keys"
 FILES_DIR = BASE_DIR / "files"
 ENCRYPTED_DIR = BASE_DIR / "encrypted"
 DECRYPTED_DIR = BASE_DIR / "decrypted"
+FRAMEWORK_NAME = "cryptography"
+DEFAULT_ALGORITHMS = [
+    ("AES-128-GCM", "simetric"),
+    ("AES-256-GCM", "simetric"),
+    ("RSA", "asimetric"),
+]
 
 for path in (KEYS_DIR, FILES_DIR, ENCRYPTED_DIR, DECRYPTED_DIR):
     path.mkdir(parents=True, exist_ok=True)

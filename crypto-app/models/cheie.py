@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class Cheie:
     id_cheie: int | None
@@ -8,5 +9,6 @@ class Cheie:
     tip_cheie: str
     dimensiune_cheie: int
     locatie_cheie: str
+    valoare_cheie_hex: str
     data_creare: str
     status: str

@@ -9,8 +9,8 @@ class CheieRepository(BaseRepository):
                 """
                 INSERT INTO Cheie (
                     id_algoritm, nume_cheie, tip_cheie, dimensiune_cheie,
-                    locatie_cheie, data_creare, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    locatie_cheie, valoare_cheie_hex, data_creare, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cheie.id_algoritm,
@@ -18,6 +18,7 @@ class CheieRepository(BaseRepository):
                     cheie.tip_cheie,
                     cheie.dimensiune_cheie,
                     cheie.locatie_cheie,
+                    cheie.valoare_cheie_hex,
                     cheie.data_creare,
                     cheie.status,
                 ),
@@ -38,15 +39,22 @@ class CheieRepository(BaseRepository):
         with self.db_manager.get_connection() as conn:
             rezultat = conn.execute(
                 """
-                UPDATE Cheie SET 
-                    id_algoritm = ?, nume_cheie = ?, tip_cheie = ?, 
-                    dimensiune_cheie = ?, locatie_cheie = ?, data_creare = ?, status = ?
+                UPDATE Cheie SET
+                    id_algoritm = ?, nume_cheie = ?, tip_cheie = ?,
+                    dimensiune_cheie = ?, locatie_cheie = ?, valoare_cheie_hex = ?,
+                    data_creare = ?, status = ?
                 WHERE id_cheie = ?
                 """,
                 (
-                    cheie.id_algoritm, cheie.nume_cheie, cheie.tip_cheie,
-                    cheie.dimensiune_cheie, cheie.locatie_cheie, cheie.data_creare,
-                    cheie.status, cheie.id_cheie
+                    cheie.id_algoritm,
+                    cheie.nume_cheie,
+                    cheie.tip_cheie,
+                    cheie.dimensiune_cheie,
+                    cheie.locatie_cheie,
+                    cheie.valoare_cheie_hex,
+                    cheie.data_creare,
+                    cheie.status,
+                    cheie.id_cheie,
                 ),
             )
             return rezultat.rowcount > 0

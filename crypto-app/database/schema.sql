@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS Cheie (
     tip_cheie TEXT NOT NULL,
     dimensiune_cheie INTEGER NOT NULL,
     locatie_cheie TEXT NOT NULL,
+    valoare_cheie_hex TEXT NOT NULL DEFAULT '',
     data_creare TEXT NOT NULL,
     status TEXT NOT NULL,
     FOREIGN KEY (id_algoritm) REFERENCES Algoritm(id_algoritm)
