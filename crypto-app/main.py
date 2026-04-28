@@ -22,16 +22,20 @@ def seed_reference_data(db_manager: DBManager) -> None:
         if not alg_repo.get_by_name(algorithm_name):
             alg_repo.insert(Algoritm(None, algorithm_name, tip))
 
-    existing_framework = framework_repo.get_by_name(FRAMEWORK_NAME)
-    if not existing_framework:
+    if not framework_repo.get_by_name(FRAMEWORK_NAME):
         framework_repo.insert(
             FrameworkModel(None, FRAMEWORK_NAME, "cryptography / AESGCM + RSA-OAEP", "Python")
+        )
+
+    openssl_frame = "OpenSSL (CLI Wrapper)"
+    if not framework_repo.get_by_name(openssl_frame):
+        framework_repo.insert(
+            FrameworkModel(None, openssl_frame, "Direct OpenSSL Binary Execution", "C / Binary")
         )
 
 
 def main():
     app_context = build_context()
-    print("Baza de date este pregătită. Pornesc interfața.")
     app = CryptoAppUI(app_context)
     app.mainloop()
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import struct
+import os
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
@@ -25,10 +26,8 @@ from models.operatie import Operatie
 from models.performanta import Performanta
 from services.cryptography_framework import CryptographyFramework, CryptographyFrameworkError
 
-
 class CryptoServiceError(RuntimeError):
     pass
-
 
 class CryptoService:
     FILE_MAGIC = b"CAPP03"
@@ -52,10 +51,19 @@ class CryptoService:
         shutil.copy2(source, destination)
         return self._insert_file_record(destination, status="importat")
 
-    def generate_key_for_algorithm(self, algorithm_id: int, key_name: str | None = None) -> Cheie:
+    def make_key(self, algorithm_id: int, key_name: str | None = None, framework_id: int | None = None) -> Cheie:
         algoritm = self._require_algorithm(algorithm_id)
-        key_bytes = self.framework.generate_random_key(algoritm.nume)
+        
+        # Verificăm dacă framework-ul selectat este OpenSSL
+        use_ssl = False
+        if framework_id:
+            fr = self.framework_repo.get_by_id(framework_id)
+            if fr and "OpenSSL" in fr.nume:
+                use_ssl = True
+            
+        key_bytes = self.framework.generate_random_key(algoritm.nume, use_openssl=use_ssl)
         key_type, key_dimension = self.framework.describe_key_material(algoritm.nume, key_bytes)
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         final_name = key_name.strip() if key_name and key_name.strip() else f"{algoritm.nume}-key-{timestamp}"
 
@@ -71,34 +79,42 @@ class CryptoService:
             status="activa",
         )
         key_id = self.cheie_repo.insert(cheie)
-        stored = self.cheie_repo.get_by_id(key_id)
-        if not stored:
-            raise CryptoServiceError("Cheia generată nu a putut fi citită după salvare.")
-        return stored
+        return self.cheie_repo.get_by_id(key_id)
 
-    def encrypt_file(self, file_id: int, key_id: int, algorithm_id: int) -> dict:
+    def encrypt_file(self, file_id: int, key_id: int, algorithm_id: int, framework_id: int) -> dict:
         fisier = self._require_file(file_id)
         cheie = self._require_key(key_id)
         algoritm = self._require_algorithm(algorithm_id)
+        fr = self.framework_repo.get_by_id(framework_id)
+        
+        use_ssl = "OpenSSL" in fr.nume if fr else False
         key_bytes = self._validate_key_for_algorithm(cheie, algoritm.id_algoritm, algoritm.nume)
 
         input_path = Path(fisier.cale_fisier)
-        if not input_path.exists():
-            raise CryptoServiceError(f"Fișierul sursă nu mai există pe disc: {input_path}")
-
         plaintext = input_path.read_bytes()
+
         memory_before = self._current_memory_kb()
         started = perf_counter()
-        encrypted_parts = self.framework.encrypt_bytes(algoritm.nume, key_bytes, plaintext)
+        
+        # Apelăm framework-ul cu parametrul use_openssl
+        enc_res = self.framework.encrypt_bytes(
+            algoritm.nume, 
+            key_bytes, 
+            plaintext, 
+            use_openssl=use_ssl, 
+            password=cheie.nume_cheie
+        )
+        
         elapsed_ms = (perf_counter() - started) * 1000.0
         memory_after = self._current_memory_kb()
 
         payload = self._pack_payload(
-            encrypted_parts["mode"],
-            encrypted_parts["nonce"],
-            encrypted_parts["ciphertext"],
-            encrypted_parts["wrapped_key"],
+            enc_res["mode"],
+            enc_res["nonce"],
+            enc_res["ciphertext"],
+            enc_res["wrapped_key"],
         )
+        
         output_path = self._unique_path(ENCRYPTED_DIR / f"{input_path.name}.enc")
         output_path.write_bytes(payload)
 
@@ -107,42 +123,47 @@ class CryptoService:
             source_file=fisier,
             key=cheie,
             algorithm_id=algoritm.id_algoritm,
+            framework_id=framework_id,
             operation_type="criptare",
             output_path=output_path,
             elapsed_ms=elapsed_ms,
             memory_before=memory_before,
             memory_after=memory_after,
             input_size=len(plaintext),
-            observation=f"cryptography / {algoritm.nume}",
+            observation=f"{fr.nume} / {algoritm.nume}",
         )
+        
         return {"operation_id": operatie_id, "output_file": output_record, "elapsed_ms": elapsed_ms}
 
-    def decrypt_file(self, file_id: int, key_id: int, algorithm_id: int) -> dict:
+    def decrypt_file(self, file_id: int, key_id: int, algorithm_id: int, framework_id: int) -> dict:
         fisier = self._require_file(file_id)
         cheie = self._require_key(key_id)
         algoritm = self._require_algorithm(algorithm_id)
+        fr = self.framework_repo.get_by_id(framework_id)
+        
+        use_ssl = "OpenSSL" in fr.nume if fr else False
         key_bytes = self._validate_key_for_algorithm(cheie, algoritm.id_algoritm, algoritm.nume)
 
         input_path = Path(fisier.cale_fisier)
-        if not input_path.exists():
-            raise CryptoServiceError(f"Fișierul selectat nu mai există pe disc: {input_path}")
-
         mode, nonce, ciphertext, wrapped_key = self._unpack_payload(input_path.read_bytes())
-        definition = self.framework.get_cipher_definition(algoritm.nume)
-        expected_mode = b"A" if definition.family == "aesgcm" else b"R"
-        if mode != expected_mode:
-            raise CryptoServiceError(
-                "Fișierul criptat nu corespunde algoritmului selectat pentru decriptare."
-            )
 
         memory_before = self._current_memory_kb()
         started = perf_counter()
-        plaintext = self.framework.decrypt_bytes(algoritm.nume, key_bytes, nonce, ciphertext, wrapped_key)
+        
+        plaintext = self.framework.decrypt_bytes(
+            algoritm.nume, 
+            key_bytes, 
+            nonce, 
+            ciphertext, 
+            wrapped_key, 
+            use_openssl=use_ssl, 
+            password=cheie.nume_cheie
+        )
+        
         elapsed_ms = (perf_counter() - started) * 1000.0
         memory_after = self._current_memory_kb()
 
-        output_path = self._build_decrypted_path(input_path.name)
-        output_path = self._unique_path(output_path)
+        output_path = self._unique_path(self._build_decrypted_path(input_path.name))
         output_path.write_bytes(plaintext)
 
         output_record = self._insert_file_record(output_path, status="decriptat")
@@ -150,30 +171,19 @@ class CryptoService:
             source_file=fisier,
             key=cheie,
             algorithm_id=algoritm.id_algoritm,
+            framework_id=framework_id,
             operation_type="decriptare",
             output_path=output_path,
             elapsed_ms=elapsed_ms,
             memory_before=memory_before,
             memory_after=memory_after,
             input_size=len(ciphertext),
-            observation=f"cryptography / {algoritm.nume}",
+            observation=f"{fr.nume} / {algoritm.nume}",
         )
+        
         return {"operation_id": operatie_id, "output_file": output_record, "elapsed_ms": elapsed_ms}
 
-    def _save_operation(
-        self,
-        source_file: Fisier,
-        key: Cheie,
-        algorithm_id: int,
-        operation_type: str,
-        output_path: Path,
-        elapsed_ms: float,
-        memory_before: float,
-        memory_after: float,
-        input_size: int,
-        observation: str,
-    ) -> int:
-        framework_id = self._get_framework_id()
+    def _save_operation(self, source_file, key, algorithm_id, framework_id, operation_type, output_path, elapsed_ms, memory_before, memory_after, input_size, observation) -> int:
         operatie = Operatie(
             id_operatie=None,
             id_fisier=source_file.id_fisier,
@@ -199,12 +209,6 @@ class CryptoService:
         )
         return operatie_id
 
-    def _get_framework_id(self) -> int:
-        framework = self.framework_repo.get_by_name(FRAMEWORK_NAME)
-        if not framework:
-            raise CryptoServiceError(f"Framework-ul '{FRAMEWORK_NAME}' nu este configurat în baza de date.")
-        return framework.id_framework
-
     def _insert_file_record(self, path: Path, status: str) -> Fisier:
         fisier = Fisier(
             id_fisier=None,
@@ -216,135 +220,76 @@ class CryptoService:
             status=status,
         )
         file_id = self.fisier_repo.insert(fisier)
-        stored = self.fisier_repo.get_by_id(file_id)
-        if not stored:
-            raise CryptoServiceError("Fișierul salvat în DB nu a putut fi recitit.")
-        return stored
-
-    def _build_decrypted_path(self, encrypted_name: str) -> Path:
-        encrypted_path = Path(encrypted_name)
-        if encrypted_path.suffix == ".enc":
-            original_name = encrypted_path.stem
-            original_path = Path(original_name)
-            suffix = original_path.suffix
-            stem = original_path.stem if suffix else original_path.name
-            filename = f"{stem}_decrypted{suffix}"
-        else:
-            filename = f"{encrypted_path.stem}_decrypted{encrypted_path.suffix}"
-        return DECRYPTED_DIR / filename
+        return self.fisier_repo.get_by_id(file_id)
 
     def _validate_key_for_algorithm(self, cheie: Cheie, algorithm_id: int, algorithm_name: str) -> bytes:
         if cheie.id_algoritm != algorithm_id:
             raise CryptoServiceError("Cheia selectată nu aparține algoritmului ales.")
-        key_bytes = self._hex_to_bytes(cheie.valoare_cheie_hex, "cheia")
-        try:
-            key_type, key_dimension = self.framework.describe_key_material(algorithm_name, key_bytes)
-        except CryptographyFrameworkError as exc:
-            raise CryptoServiceError(str(exc)) from exc
-        if cheie.tip_cheie and cheie.tip_cheie.strip().lower() not in {key_type, key_type.lower()}:
-            raise CryptoServiceError(
-                f"Tipul cheii din DB este '{cheie.tip_cheie}', dar algoritmul {algorithm_name} cere '{key_type}'."
-            )
-        if cheie.dimensiune_cheie != key_dimension:
-            raise CryptoServiceError(
-                f"Cheia selectată are dimensiunea {cheie.dimensiune_cheie}, dar materialul real indică {key_dimension}."
-            )
-        return key_bytes
+        return bytes.fromhex(cheie.valoare_cheie_hex)
 
     def _require_file(self, file_id: int):
-        fisier = self.fisier_repo.get_by_id(file_id)
-        if not fisier:
-            raise CryptoServiceError("Fișierul selectat nu există în baza de date.")
-        return fisier
+        f = self.fisier_repo.get_by_id(file_id)
+        if not f: raise CryptoServiceError("Fișier inexistent.")
+        return f
 
     def _require_key(self, key_id: int):
-        cheie = self.cheie_repo.get_by_id(key_id)
-        if not cheie:
-            raise CryptoServiceError("Cheia selectată nu există în baza de date.")
-        if not cheie.valoare_cheie_hex:
-            raise CryptoServiceError("Cheia selectată nu are valoare salvată în DB.")
-        return cheie
+        k = self.cheie_repo.get_by_id(key_id)
+        if not k: raise CryptoServiceError("Cheie inexistentă.")
+        return k
 
     def _require_algorithm(self, algorithm_id: int):
-        algoritm = self.alg_repo.get_by_id(algorithm_id)
-        if not algoritm:
-            raise CryptoServiceError("Algoritmul selectat nu există în baza de date.")
-        self.framework.get_cipher_definition(algoritm.nume)
-        return algoritm
+        a = self.alg_repo.get_by_id(algorithm_id)
+        if not a: raise CryptoServiceError("Algoritm inexistent.")
+        return a
 
-    @staticmethod
-    def _hex_to_bytes(value: str, label: str) -> bytes:
-        normalized = "".join(value.strip().split())
-        if not normalized:
-            raise CryptoServiceError(f"Valoarea pentru {label} este goală.")
-        try:
-            return bytes.fromhex(normalized)
-        except ValueError as exc:
-            raise CryptoServiceError(f"Valoarea hex pentru {label} este invalidă.") from exc
+    def _pack_payload(self, mode: bytes, nonce: bytes, ciphertext: bytes, wrapped_key: bytes) -> bytes:
+        return b"".join([
+            self.FILE_MAGIC,
+            mode,
+            struct.pack(">I", len(wrapped_key)),
+            wrapped_key,
+            struct.pack("B", len(nonce)),
+            nonce,
+            ciphertext
+        ])
 
-    @staticmethod
-    def _pack_payload(mode: bytes, nonce: bytes, ciphertext: bytes, wrapped_key: bytes) -> bytes:
-        if len(mode) != 1:
-            raise CryptoServiceError("Marker-ul de mod trebuie să aibă exact 1 byte.")
-        return b"".join(
-            [
-                CryptoService.FILE_MAGIC,
-                mode,
-                struct.pack(">I", len(wrapped_key)),
-                wrapped_key,
-                struct.pack("B", len(nonce)),
-                nonce,
-                ciphertext,
-            ]
-        )
-
-    @staticmethod
-    def _unpack_payload(payload: bytes) -> tuple[bytes, bytes, bytes, bytes]:
-        min_length = len(CryptoService.FILE_MAGIC) + 1 + 4 + 1
-        if len(payload) < min_length or not payload.startswith(CryptoService.FILE_MAGIC):
-            raise CryptoServiceError("Fișierul selectat nu are antetul așteptat pentru decriptare.")
-        cursor = len(CryptoService.FILE_MAGIC)
+    def _unpack_payload(self, payload: bytes) -> tuple[bytes, bytes, bytes, bytes]:
+        cursor = len(self.FILE_MAGIC)
+        if not payload.startswith(self.FILE_MAGIC):
+            raise CryptoServiceError("Header invalid.")
         mode = payload[cursor:cursor + 1]
         cursor += 1
-        wrapped_length = struct.unpack(">I", payload[cursor:cursor + 4])[0]
+        wrapped_len = struct.unpack(">I", payload[cursor:cursor + 4])[0]
         cursor += 4
-        wrapped_key = payload[cursor:cursor + wrapped_length]
-        cursor += wrapped_length
-        if cursor >= len(payload):
-            raise CryptoServiceError("Fișierul criptat este incomplet sau corupt.")
-        nonce_length = payload[cursor]
+        wrapped_key = payload[cursor:cursor + wrapped_len]
+        cursor += wrapped_len
+        nonce_len = payload[cursor]
         cursor += 1
-        nonce = payload[cursor:cursor + nonce_length]
-        cursor += nonce_length
+        nonce = payload[cursor:cursor + nonce_len]
+        cursor += nonce_len
         ciphertext = payload[cursor:]
-        if not nonce or not ciphertext:
-            raise CryptoServiceError("Fișierul criptat este incomplet sau corupt.")
         return mode, nonce, ciphertext, wrapped_key
 
-    @staticmethod
-    def _sha256_file(path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(65536), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
+    def _build_decrypted_path(self, name: str) -> Path:
+        p = Path(name)
+        new_name = p.stem.replace(".enc", "") + "_decrypted" + p.suffix.replace(".enc", "")
+        return DECRYPTED_DIR / new_name
 
-    @staticmethod
-    def _unique_path(path: Path) -> Path:
-        if not path.exists():
-            return path
+    def _sha256_file(self, path: Path) -> str:
+        sha = hashlib.sha256()
+        with path.open("rb") as f:
+            while chunk := f.read(65536):
+                sha.update(chunk)
+        return sha.hexdigest()
+
+    def _unique_path(self, path: Path) -> Path:
+        if not path.exists(): return path
         counter = 1
         while True:
             candidate = path.with_name(f"{path.stem}_{counter}{path.suffix}")
-            if not candidate.exists():
-                return candidate
+            if not candidate.exists(): return candidate
             counter += 1
 
-    @staticmethod
-    def _current_memory_kb() -> float:
-        if psutil is None:
-            return 0.0
-        try:
-            return psutil.Process().memory_info().rss / 1024.0
-        except Exception:
-            return 0.0
+    def _current_memory_kb(self) -> float:
+        if psutil is None: return 0.0
+        return psutil.Process().memory_info().rss / 1024.0
