@@ -54,7 +54,6 @@ class CryptoService:
     def make_key(self, algorithm_id: int, key_name: str | None = None, framework_id: int | None = None) -> Cheie:
         algoritm = self._require_algorithm(algorithm_id)
         
-        # Verificăm dacă framework-ul selectat este OpenSSL
         use_ssl = False
         if framework_id:
             fr = self.framework_repo.get_by_id(framework_id)
@@ -96,7 +95,6 @@ class CryptoService:
         memory_before = self._current_memory_kb()
         started = perf_counter()
         
-        # Apelăm framework-ul cu parametrul use_openssl
         enc_res = self.framework.encrypt_bytes(
             algoritm.nume, 
             key_bytes, 

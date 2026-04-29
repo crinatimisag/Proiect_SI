@@ -19,7 +19,6 @@ class TestCryptoService(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.base_dir = Path(self.temp_dir.name)
 
-        # Izolăm fișierele generate de teste, ca să nu modifice directoarele reale ale aplicației.
         self.files_dir = self.base_dir / "files"
         self.encrypted_dir = self.base_dir / "encrypted"
         self.decrypted_dir = self.base_dir / "decrypted"
@@ -50,13 +49,13 @@ class TestCryptoService(unittest.TestCase):
             self.framework_repo.insert(
                 FrameworkModel(None, "cryptography", "AES-GCM/CBC + RSA-OAEP", "Python")
             )
-        if not self.framework_repo.get_by_name("OpenSSL (CLI Wrapper)"):
+        if not self.framework_repo.get_by_name("OpenSSL CLI"):
             self.framework_repo.insert(
-                FrameworkModel(None, "OpenSSL (CLI Wrapper)", "OpenSSL binary", "C / Binary")
+                FrameworkModel(None, "OpenSSL CLI", "OpenSSL binary", "C / Binary")
             )
 
         self.cryptography_framework = self.framework_repo.get_by_name("cryptography")
-        self.openssl_framework = self.framework_repo.get_by_name("OpenSSL (CLI Wrapper)")
+        self.openssl_framework = self.framework_repo.get_by_name("OpenSSL CLI")
 
         self.service = CryptoService(self.db_manager)
         self.sample_path = self.base_dir / "sample.txt"

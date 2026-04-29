@@ -18,7 +18,6 @@ from services.cryptography_framework import CryptographyFrameworkError
 
 
 class CryptoAppUI(tk.Tk):
-    """Interfață grafică pentru managementul local al cheilor și fișierelor criptate."""
 
     OPENSSL_COMPATIBLE_ALGORITHMS = {"AES-128-CBC", "AES-256-CBC", "RSA"}
     CRYPTOGRAPHY_PREFERRED_ALGORITHM = "AES-256-GCM"
@@ -41,7 +40,7 @@ class CryptoAppUI(tk.Tk):
         self._all_keys = []
         self._all_files = []
 
-        self.title("Crypto Key Manager - AES / RSA / OpenSSL")
+        self.title("Crypto App")
         self.geometry("1320x780")
         self.minsize(1120, 680)
         self.bg_main = "#f4f6f8"
@@ -121,14 +120,14 @@ class CryptoAppUI(tk.Tk):
 
         ttk.Label(
             outer_frame,
-            text="Management local pentru chei, fișiere criptate și performanțe",
+            text="Crypto App",
             font=("Segoe UI", 18, "bold"),
         ).pack(anchor="w", pady=(0, 8))
         ttk.Label(
             outer_frame,
             text=(
                 "Selectează întâi framework-ul. Lista de algoritmi este filtrată automat: "
-                "OpenSSL folosește AES-CBC sau RSA hibrid, iar cryptography poate folosi AES-GCM, AES-CBC sau RSA."
+                "OpenSSL folosește AES-CBC sau RSA, iar cryptography poate folosi AES-GCM, AES-CBC sau RSA."
             ),
             wraplength=1080,
         ).pack(anchor="w", pady=(0, 16))
@@ -241,35 +240,35 @@ class CryptoAppUI(tk.Tk):
         elif entity_name == "Cheie":
             ttk.Label(
                 btn_frame,
-                text="Cheile se generează automat din tab-ul Rapid, ca să aibă dimensiunea corectă pentru algoritm.",
+                text="Cheile se generează din tab-ul Rapid, ca să aibă dimensiunea corectă pentru algoritm.",
                 wraplength=300,
                 justify="left",
             ).pack(fill="x", pady=(0, 8))
             ttk.Button(btn_frame, text="🔑 Generează din Rapid", style="Action.TButton", command=lambda: self.notebook.select(self.frames["Rapid"])).pack(fill="x", pady=3)
             ttk.Button(
                 btn_frame,
-                text="🗑️ Șterge cheia selectată",
+                text="🗑️ Șterge",
                 style="Action.TButton",
                 command=lambda en=entity_name, vd=vars_dict, r=repo: self.handle_crud(en, vd, r, "del", get_sid()),
             ).pack(fill="x", pady=3)
         elif entity_name == "Fisier":
             ttk.Label(
                 btn_frame,
-                text="Fișierele se importă prin aplicație pentru a calcula corect hash-ul, dimensiunea și statusul.",
+                text="",
                 wraplength=300,
                 justify="left",
             ).pack(fill="x", pady=(0, 8))
             ttk.Button(btn_frame, text="📁 Importă fișier", style="Action.TButton", command=self.import_file_rapid).pack(fill="x", pady=3)
             ttk.Button(
                 btn_frame,
-                text="🗑️ Șterge fișierul selectat din DB",
+                text="🗑️ Șterge",
                 style="Action.TButton",
                 command=lambda en=entity_name, vd=vars_dict, r=repo: self.handle_crud(en, vd, r, "del", get_sid()),
             ).pack(fill="x", pady=3)
         elif entity_name in readonly_entities or readonly_insert:
             ttk.Label(
                 btn_frame,
-                text="Acest tabel este completat automat după operațiile de criptare/decriptare.",
+                text="",
                 wraplength=300,
                 justify="left",
             ).pack(fill="x", pady=(0, 8))
@@ -282,9 +281,9 @@ class CryptoAppUI(tk.Tk):
         try:
             if action == "del":
                 if not sid:
-                    messagebox.showwarning("Selecție lipsă", "Selectează mai întâi o înregistrare.")
+                    messagebox.showwarning("Selectie lipsă", "Selecteaza mai întai o înregistrare.")
                     return
-                if messagebox.askyesno("Confirmare", "Ștergeți înregistrarea selectată din baza de date?"):
+                if messagebox.askyesno("Confirmare", "Stergeti inregistrarea selectata?"):
                     repo.delete(sid)
             else:
                 if entity == "Algoritm":
@@ -294,13 +293,13 @@ class CryptoAppUI(tk.Tk):
                 elif entity == "Framework":
                     obj = FrameworkModel(sid, vals[0].strip(), vals[1].strip(), vals[2].strip())
                 else:
-                    raise ValueError("Operația manuală nu este permisă pentru această tabelă.")
+                    raise ValueError("Operatia manuală nu este permisă pentru această tabelă.")
 
                 if action == "add":
                     repo.insert(obj)
                 else:
                     if not sid:
-                        messagebox.showwarning("Selecție lipsă", "Selectează mai întâi o înregistrare.")
+                        messagebox.showwarning("Selecție lipsă", "Selecteaza mai întâi o înregistrare.")
                         return
                     repo.update(obj)
             self.refresh_all()
@@ -479,16 +478,16 @@ class CryptoAppUI(tk.Tk):
         self.refresh_fisier(self.tree_fisier)
         self.refresh_operatie(self.tree_operatie)
         self.refresh_perf(self.tree_performanta)
-        self.update_compatibility_note()
+        # self.update_compatibility_note()
 
     def on_framework_changed(self):
         self.update_rapid_algorithm_choices()
         self.update_rapid_keys_for_selected_algorithm()
-        self.update_compatibility_note()
+        # self.update_compatibility_note()
 
     def on_algorithm_changed(self):
         self.update_rapid_keys_for_selected_algorithm()
-        self.update_compatibility_note()
+        # self.update_compatibility_note()
 
     def update_rapid_algorithm_choices(self):
         if not hasattr(self, "combo_alg_rapid"):

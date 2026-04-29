@@ -33,12 +33,7 @@ class CipherDefinition:
 
 
 class OpenSSLEngine:
-    """Wrapper minimal peste executabilul OpenSSL.
-
-    Important: folosim cheia reală din DB, nu numele cheii ca parolă.
-    Pentru AES-CBC folosim -K și -iv, adică raw key + IV.
-    """
-
+    
     def __init__(self, openssl_path: str | None = None):
         self.path = (
             openssl_path

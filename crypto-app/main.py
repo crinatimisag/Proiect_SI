@@ -24,13 +24,13 @@ def seed_reference_data(db_manager: DBManager) -> None:
 
     if not framework_repo.get_by_name(FRAMEWORK_NAME):
         framework_repo.insert(
-            FrameworkModel(None, FRAMEWORK_NAME, "cryptography / AESGCM + RSA-OAEP", "Python")
+            FrameworkModel(None, FRAMEWORK_NAME, "PyCA library", "Python")
         )
 
-    openssl_frame = "OpenSSL (CLI Wrapper)"
+    openssl_frame = "OpenSSL CLI"
     if not framework_repo.get_by_name(openssl_frame):
         framework_repo.insert(
-            FrameworkModel(None, openssl_frame, "Direct OpenSSL Binary Execution", "C / Binary")
+            FrameworkModel(None, openssl_frame, "External binary", "C / Binary")
         )
 
 
