@@ -53,16 +53,15 @@ class CryptoService:
 
     def make_key(self, algorithm_id: int, key_name: str | None = None, framework_id: int | None = None) -> Cheie:
         algoritm = self._require_algorithm(algorithm_id)
-        
-        use_ssl = False
-        if framework_id:
-            fr = self.framework_repo.get_by_id(framework_id)
-            if fr and "OpenSSL" in fr.nume:
-                use_ssl = True
-            
-        key_bytes = self.framework.generate_random_key(algoritm.nume, use_openssl=use_ssl)
+        use_ssl, use_pycryptodome = self._framework_flags(framework_id)
+
+        key_bytes = self.framework.generate_random_key(
+            algoritm.nume,
+            use_openssl=use_ssl,
+            use_pycryptodome=use_pycryptodome
+        )
         key_type, key_dimension = self.framework.describe_key_material(algoritm.nume, key_bytes)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         final_name = key_name.strip() if key_name and key_name.strip() else f"{algoritm.nume}-key-{timestamp}"
 
@@ -86,7 +85,7 @@ class CryptoService:
         algoritm = self._require_algorithm(algorithm_id)
         fr = self.framework_repo.get_by_id(framework_id)
         
-        use_ssl = "OpenSSL" in fr.nume if fr else False
+        use_ssl, use_pycryptodome = self._framework_flags(framework_id)
         key_bytes = self._validate_key_for_algorithm(cheie, algoritm.id_algoritm, algoritm.nume)
 
         input_path = Path(fisier.cale_fisier)
@@ -99,7 +98,8 @@ class CryptoService:
             algoritm.nume, 
             key_bytes, 
             plaintext, 
-            use_openssl=use_ssl, 
+            use_openssl=use_ssl,
+            use_pycryptodome=use_pycryptodome,
             password=cheie.nume_cheie
         )
         
@@ -139,7 +139,7 @@ class CryptoService:
         algoritm = self._require_algorithm(algorithm_id)
         fr = self.framework_repo.get_by_id(framework_id)
         
-        use_ssl = "OpenSSL" in fr.nume if fr else False
+        use_ssl, use_pycryptodome = self._framework_flags(framework_id)
         key_bytes = self._validate_key_for_algorithm(cheie, algoritm.id_algoritm, algoritm.nume)
 
         input_path = Path(fisier.cale_fisier)
@@ -154,7 +154,8 @@ class CryptoService:
             nonce, 
             ciphertext, 
             wrapped_key, 
-            use_openssl=use_ssl, 
+            use_openssl=use_ssl,
+            use_pycryptodome=use_pycryptodome,
             password=cheie.nume_cheie
         )
         
@@ -180,6 +181,11 @@ class CryptoService:
         )
         
         return {"operation_id": operatie_id, "output_file": output_record, "elapsed_ms": elapsed_ms}
+
+    def _framework_flags(self, framework_id: int | None) -> tuple[bool, bool]:
+        fr = self.framework_repo.get_by_id(framework_id) if framework_id else None
+        nume_frame = fr.nume.lower() if fr else ""
+        return "openssl" in nume_frame, "pycryptodome" in nume_frame
 
     def _save_operation(self, source_file, key, algorithm_id, framework_id, operation_type, output_path, elapsed_ms, memory_before, memory_after, input_size, observation) -> int:
         operatie = Operatie(

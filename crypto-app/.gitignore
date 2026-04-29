@@ -4,3 +4,4 @@ __pycache__/
 encrypted
 decrypted
 files
+__init.py__

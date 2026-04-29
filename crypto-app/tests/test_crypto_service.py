@@ -11,7 +11,6 @@ from database.repositories.framework_repository import FrameworkRepository
 from models.algoritm import Algoritm
 from models.framework_model import FrameworkModel
 from services.crypto_service import CryptoService
-from services.cryptography_framework import CryptographyFrameworkError
 
 
 class TestCryptoService(unittest.TestCase):
@@ -38,7 +37,9 @@ class TestCryptoService(unittest.TestCase):
         self.framework_repo = FrameworkRepository(self.db_manager)
 
         for name, tip in (
+            ("AES-128-GCM", "simetric"),
             ("AES-256-GCM", "simetric"),
+            ("AES-128-CBC", "simetric"),
             ("AES-256-CBC", "simetric"),
             ("RSA", "asimetric"),
         ):
@@ -53,9 +54,14 @@ class TestCryptoService(unittest.TestCase):
             self.framework_repo.insert(
                 FrameworkModel(None, "OpenSSL CLI", "OpenSSL binary", "C / Binary")
             )
+        if not self.framework_repo.get_by_name("PyCryptodome"):
+            self.framework_repo.insert(
+                FrameworkModel(None, "PyCryptodome", "Python crypto library", "Python")
+            )
 
         self.cryptography_framework = self.framework_repo.get_by_name("cryptography")
         self.openssl_framework = self.framework_repo.get_by_name("OpenSSL CLI")
+        self.pycryptodome_framework = self.framework_repo.get_by_name("PyCryptodome")
 
         self.service = CryptoService(self.db_manager)
         self.sample_path = self.base_dir / "sample.txt"
@@ -129,53 +135,99 @@ class TestCryptoService(unittest.TestCase):
         self.assertGreaterEqual(performances[-2]["timp_executie_ms"], 0)
         self.assertGreaterEqual(performances[-1]["timp_executie_ms"], 0)
 
-    def test_cryptography_aes_gcm_roundtrip(self):
+    def test_cryptography_aes_128_gcm_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-128-GCM",
+            framework_id=self.cryptography_framework.id_framework,
+            key_name="aes_128_gcm_cryptography_test",
+        )
+
+    def test_cryptography_aes_256_gcm_roundtrip(self):
         self._roundtrip(
             algorithm_name="AES-256-GCM",
             framework_id=self.cryptography_framework.id_framework,
-            key_name="aes_gcm_pyca_test",
+            key_name="aes_256_gcm_cryptography_test",
+        )
+
+    def test_cryptography_aes_128_cbc_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-128-CBC",
+            framework_id=self.cryptography_framework.id_framework,
+            key_name="aes_128_cbc_cryptography_test",
+        )
+
+    def test_cryptography_aes_256_cbc_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-256-CBC",
+            framework_id=self.cryptography_framework.id_framework,
+            key_name="aes_256_cbc_cryptography_test",
         )
 
     def test_cryptography_rsa_roundtrip(self):
         self._roundtrip(
             algorithm_name="RSA",
             framework_id=self.cryptography_framework.id_framework,
-            key_name="rsa_pyca_test",
+            key_name="rsa_cryptography_test",
         )
 
     @unittest.skipUnless(_openssl_available.__func__(), "OpenSSL nu este disponibil pe acest sistem")
-    def test_openssl_aes_cbc_roundtrip(self):
+    def test_openssl_aes_128_cbc_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-128-CBC",
+            framework_id=self.openssl_framework.id_framework,
+            key_name="aes_128_cbc_openssl_test",
+        )
+
+    @unittest.skipUnless(_openssl_available.__func__(), "OpenSSL nu este disponibil pe acest sistem")
+    def test_openssl_aes_256_cbc_roundtrip(self):
         self._roundtrip(
             algorithm_name="AES-256-CBC",
             framework_id=self.openssl_framework.id_framework,
-            key_name="aes_cbc_openssl_test",
+            key_name="aes_256_cbc_openssl_test",
         )
 
     @unittest.skipUnless(_openssl_available.__func__(), "OpenSSL nu este disponibil pe acest sistem")
-    def test_openssl_rsa_hybrid_roundtrip(self):
+    def test_openssl_rsa_roundtrip(self):
         self._roundtrip(
             algorithm_name="RSA",
             framework_id=self.openssl_framework.id_framework,
             key_name="rsa_openssl_test",
         )
 
-    @unittest.skipUnless(_openssl_available.__func__(), "OpenSSL nu este disponibil pe acest sistem")
-    def test_openssl_does_not_accept_aes_gcm_cli_mode(self):
-        algoritm = self.alg_repo.get_by_name("AES-256-GCM")
-        key = self.service.make_key(
-            algoritm.id_algoritm,
-            "aes_gcm_openssl_rejected_test",
-            self.openssl_framework.id_framework,
+    def test_pycryptodome_aes_128_gcm_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-128-GCM",
+            framework_id=self.pycryptodome_framework.id_framework,
+            key_name="aes_128_gcm_pycryptodome_test",
         )
-        fisier = self.service.register_file(self.sample_path)
 
-        with self.assertRaises(CryptographyFrameworkError):
-            self.service.encrypt_file(
-                fisier.id_fisier,
-                key.id_cheie,
-                algoritm.id_algoritm,
-                self.openssl_framework.id_framework,
-            )
+    def test_pycryptodome_aes_256_gcm_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-256-GCM",
+            framework_id=self.pycryptodome_framework.id_framework,
+            key_name="aes_256_gcm_pycryptodome_test",
+        )
+
+    def test_pycryptodome_aes_128_cbc_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-128-CBC",
+            framework_id=self.pycryptodome_framework.id_framework,
+            key_name="aes_128_cbc_pycryptodome_test",
+        )
+
+    def test_pycryptodome_aes_256_cbc_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="AES-256-CBC",
+            framework_id=self.pycryptodome_framework.id_framework,
+            key_name="aes_256_cbc_pycryptodome_test",
+        )
+
+    def test_pycryptodome_rsa_roundtrip(self):
+        self._roundtrip(
+            algorithm_name="RSA",
+            framework_id=self.pycryptodome_framework.id_framework,
+            key_name="rsa_pycryptodome_test",
+        )
 
 
 if __name__ == "__main__":

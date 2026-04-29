@@ -33,6 +33,12 @@ def seed_reference_data(db_manager: DBManager) -> None:
             FrameworkModel(None, openssl_frame, "External binary", "C / Binary")
         )
 
+    pycrypto_frame = "PyCryptodome"
+    if not framework_repo.get_by_name(pycrypto_frame):
+        framework_repo.insert(
+            FrameworkModel(None, pycrypto_frame, "Python crypto library", "Python")
+        )
+
 
 def main():
     app_context = build_context()

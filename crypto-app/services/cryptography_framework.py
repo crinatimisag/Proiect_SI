@@ -33,7 +33,7 @@ class CipherDefinition:
 
 
 class OpenSSLEngine:
-    
+
     def __init__(self, openssl_path: str | None = None):
         self.path = (
             openssl_path
@@ -203,6 +203,72 @@ class OpenSSLEngine:
             return Path(output_path).read_bytes()
 
 
+class PyCryptodomeEngine:
+
+    def _load(self):
+        try:
+            from Crypto.Cipher import AES, PKCS1_OAEP
+            from Crypto.Hash import SHA256
+            from Crypto.PublicKey import RSA
+            from Crypto.Random import get_random_bytes
+            from Crypto.Util.Padding import pad, unpad
+        except ModuleNotFoundError as exc:
+            raise CryptographyFrameworkError(
+                "PyCryptodome nu este instalat. Rulează: pip install pycryptodome"
+            ) from exc
+        return AES, PKCS1_OAEP, SHA256, RSA, get_random_bytes, pad, unpad
+
+    def random_bytes(self, size: int) -> bytes:
+        _aes, _oaep, _sha, _rsa, get_random_bytes, _pad, _unpad = self._load()
+        return get_random_bytes(size)
+
+    def generate_rsa_key(self, bits: int = 2048) -> bytes:
+        _aes, _oaep, _sha, RSA, _random, _pad, _unpad = self._load()
+        key = RSA.generate(bits)
+        return key.export_key(format="PEM")
+
+    def encrypt_aes_gcm(self, data: bytes, key_material: bytes) -> tuple[bytes, bytes]:
+        AES, _oaep, _sha, _rsa, get_random_bytes, _pad, _unpad = self._load()
+        nonce = get_random_bytes(12)
+        cipher = AES.new(key_material, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(data)
+        return nonce, ciphertext + tag
+
+    def decrypt_aes_gcm(self, data: bytes, key_material: bytes, nonce: bytes) -> bytes:
+        AES, _oaep, _sha, _rsa, _random, _pad, _unpad = self._load()
+        ciphertext = data[:-16]
+        tag = data[-16:]
+        cipher = AES.new(key_material, AES.MODE_GCM, nonce=nonce)
+        return cipher.decrypt_and_verify(ciphertext, tag)
+
+    def encrypt_aes_cbc(self, data: bytes, key_material: bytes) -> tuple[bytes, bytes]:
+        AES, _oaep, _sha, _rsa, get_random_bytes, pad, _unpad = self._load()
+        iv = get_random_bytes(16)
+        cipher = AES.new(key_material, AES.MODE_CBC, iv)
+        ciphertext = cipher.encrypt(pad(data, AES.block_size))
+        return iv, ciphertext
+
+    def decrypt_aes_cbc(self, data: bytes, key_material: bytes, iv: bytes) -> bytes:
+        AES, _oaep, _sha, _rsa, _random, _pad, unpad = self._load()
+        if len(iv) != 16:
+            raise CryptographyFrameworkError("IV invalid pentru AES-CBC.")
+        cipher = AES.new(key_material, AES.MODE_CBC, iv)
+        return unpad(cipher.decrypt(data), AES.block_size)
+
+    def rsa_oaep_encrypt(self, private_key_pem: bytes, data: bytes) -> bytes:
+        _aes, PKCS1_OAEP, SHA256, RSA, _random, _pad, _unpad = self._load()
+        private_key = RSA.import_key(private_key_pem)
+        public_key = private_key.publickey()
+        cipher_rsa = PKCS1_OAEP.new(public_key, hashAlgo=SHA256)
+        return cipher_rsa.encrypt(data)
+
+    def rsa_oaep_decrypt(self, private_key_pem: bytes, encrypted_data: bytes) -> bytes:
+        _aes, PKCS1_OAEP, SHA256, RSA, _random, _pad, _unpad = self._load()
+        private_key = RSA.import_key(private_key_pem)
+        cipher_rsa = PKCS1_OAEP.new(private_key, hashAlgo=SHA256)
+        return cipher_rsa.decrypt(encrypted_data)
+
+
 class CryptographyFramework:
     _SUPPORTED = {
         "AES-128-GCM": CipherDefinition("AES-128-GCM", family="aesgcm", key_size_bytes=16),
@@ -216,6 +282,7 @@ class CryptographyFramework:
 
     def __init__(self):
         self._openssl: OpenSSLEngine | None = None
+        self._pycrypto: PyCryptodomeEngine | None = None
 
     @property
     def openssl(self) -> OpenSSLEngine:
@@ -223,23 +290,33 @@ class CryptographyFramework:
             self._openssl = OpenSSLEngine()
         return self._openssl
 
+    @property
+    def pycrypto(self) -> PyCryptodomeEngine:
+        if self._pycrypto is None:
+            self._pycrypto = PyCryptodomeEngine()
+        return self._pycrypto
+
     def get_cipher_definition(self, algorithm_name: str) -> CipherDefinition:
         try:
             return self._SUPPORTED[algorithm_name.strip().upper()]
         except KeyError as exc:
             raise CryptographyFrameworkError(f"Algoritmul '{algorithm_name}' nu este suportat.") from exc
 
-    def generate_random_key(self, algorithm_name: str, use_openssl: bool = False) -> bytes:
+    def generate_random_key(self, algorithm_name: str, use_openssl: bool = False, use_pycryptodome: bool = False) -> bytes:
         cipher = self.get_cipher_definition(algorithm_name)
 
         if cipher.family in {"aesgcm", "aescbc"}:
             if use_openssl:
                 return self.openssl.random_bytes(cipher.key_size_bytes)
+            if use_pycryptodome:
+                return self.pycrypto.random_bytes(cipher.key_size_bytes)
             return os.urandom(cipher.key_size_bytes)
 
         if cipher.family == "rsa_hybrid":
             if use_openssl:
                 return self.openssl.generate_rsa_key(cipher.rsa_key_size_bits)
+            if use_pycryptodome:
+                return self.pycrypto.generate_rsa_key(cipher.rsa_key_size_bits)
             private_key = rsa.generate_private_key(65537, key_size=cipher.rsa_key_size_bits)
             return private_key.private_bytes(
                 serialization.Encoding.PEM,
@@ -269,6 +346,7 @@ class CryptographyFramework:
         key_material: bytes,
         plaintext: bytes,
         use_openssl: bool = False,
+        use_pycryptodome: bool = False,
         password: str = "",
     ) -> dict[str, bytes]:
         cipher = self.get_cipher_definition(algorithm_name)
@@ -286,6 +364,19 @@ class CryptographyFramework:
                 iv, ciphertext = self.openssl.encrypt_aes_cbc(plaintext, session_key)
                 wrapped_key = self.openssl.rsa_oaep_encrypt(key_material, session_key)
                 return {"mode": b"S", "nonce": iv, "ciphertext": ciphertext, "wrapped_key": wrapped_key}
+
+        if use_pycryptodome:
+            if cipher.family == "aesgcm":
+                nonce, ciphertext = self.pycrypto.encrypt_aes_gcm(plaintext, key_material)
+                return {"mode": b"P", "nonce": nonce, "ciphertext": ciphertext, "wrapped_key": b""}
+            if cipher.family == "aescbc":
+                iv, ciphertext = self.pycrypto.encrypt_aes_cbc(plaintext, key_material)
+                return {"mode": b"Q", "nonce": iv, "ciphertext": ciphertext, "wrapped_key": b""}
+            if cipher.family == "rsa_hybrid":
+                session_key = self.pycrypto.random_bytes(32)
+                nonce, ciphertext = self.pycrypto.encrypt_aes_gcm(plaintext, session_key)
+                wrapped_key = self.pycrypto.rsa_oaep_encrypt(key_material, session_key)
+                return {"mode": b"Y", "nonce": nonce, "ciphertext": ciphertext, "wrapped_key": wrapped_key}
 
         if cipher.family == "aesgcm":
             nonce = os.urandom(cipher.nonce_size_bytes)
@@ -314,6 +405,7 @@ class CryptographyFramework:
         ciphertext: bytes,
         wrapped_key: bytes = b"",
         use_openssl: bool = False,
+        use_pycryptodome: bool = False,
         password: str = "",
     ) -> bytes:
         cipher = self.get_cipher_definition(algorithm_name)
@@ -328,6 +420,15 @@ class CryptographyFramework:
             if cipher.family == "rsa_hybrid":
                 session_key = self.openssl.rsa_oaep_decrypt(key_material, wrapped_key)
                 return self.openssl.decrypt_aes_cbc(ciphertext, session_key, nonce)
+
+        if use_pycryptodome:
+            if cipher.family == "aesgcm":
+                return self.pycrypto.decrypt_aes_gcm(ciphertext, key_material, nonce)
+            if cipher.family == "aescbc":
+                return self.pycrypto.decrypt_aes_cbc(ciphertext, key_material, nonce)
+            if cipher.family == "rsa_hybrid":
+                session_key = self.pycrypto.rsa_oaep_decrypt(key_material, wrapped_key)
+                return self.pycrypto.decrypt_aes_gcm(ciphertext, session_key, nonce)
 
         if cipher.family == "aesgcm":
             return AESGCM(key_material).decrypt(nonce, ciphertext, None)

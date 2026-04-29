@@ -1,3 +1,4 @@
 cryptography
 psutil>=5.9.0
 matplotlib
+pycryptodome
