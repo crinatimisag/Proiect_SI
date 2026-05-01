@@ -1,0 +1,29 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+# Python
+__pycache__/
+*.pyc
+
+# Baza de date locală
+crypto_app.db
+
+# Fișiere generate/importate
+files/*
+encrypted/*
+decrypted/*
+
+# Păstrează folderele în repo
+!files/.gitkeep
+!encrypted/.gitkeep
+!decrypted/.gitkeep
+
+# Config local / IDE
+.env
+.vscode/
+.idea/

@@ -126,13 +126,12 @@ class CryptoAppUI(tk.Tk):
         ttk.Label(
             outer_frame,
             text=(
-                "Selectează întâi framework-ul. Lista de algoritmi este filtrată automat: "
-                "OpenSSL folosește AES-CBC sau RSA, iar cryptography poate folosi AES-GCM, AES-CBC sau RSA."
+                ""
             ),
             wraplength=1080,
         ).pack(anchor="w", pady=(0, 16))
 
-        selection_frame = ttk.LabelFrame(outer_frame, text="Operații rapide", padding=20)
+        selection_frame = ttk.LabelFrame(outer_frame, text="", padding=20)
         selection_frame.pack(fill="x")
         selection_frame.columnconfigure(1, weight=1)
 
@@ -158,7 +157,6 @@ class CryptoAppUI(tk.Tk):
         tools_frame.grid(row=0, column=2, rowspan=4, padx=(25, 0), pady=2, sticky="n")
         ttk.Button(tools_frame, text="Generează cheie", command=self.generate_key_rapid, style="Action.TButton", width=24).pack(fill="x", pady=4)
         ttk.Button(tools_frame, text="Importă fișier", command=self.import_file_rapid, style="Action.TButton", width=24).pack(fill="x", pady=4)
-        ttk.Button(tools_frame, text="Refresh liste", command=self.refresh_all, style="Action.TButton", width=24).pack(fill="x", pady=4)
 
         self.compat_info = tk.StringVar(value="")
         ttk.Label(selection_frame, textvariable=self.compat_info, wraplength=980, justify="left").grid(
@@ -172,7 +170,7 @@ class CryptoAppUI(tk.Tk):
 
         details_frame = ttk.LabelFrame(outer_frame, text="Status", padding=15)
         details_frame.pack(fill="both", expand=True)
-        self.quick_info = tk.StringVar(value="Sistem pregătit. Importă un fișier, generează o cheie și rulează criptarea.")
+        self.quick_info = tk.StringVar(value="Importă un fișier, generează o cheie și rulează criptarea.")
         ttk.Label(details_frame, textvariable=self.quick_info, wraplength=1120, justify="left").pack(anchor="w")
 
     def setup_generic_tab(self, parent, entity_name, fields, repo, refresh_callback, readonly_insert=False):
@@ -375,7 +373,7 @@ class CryptoAppUI(tk.Tk):
             self.quick_info.set(f"Decriptare reușită. Fișier restabilit: {result['output_file'].cale_fisier} | Timp: {result['elapsed_ms']:.2f} ms")
             messagebox.showinfo("Succes", self.quick_info.get())
         except (CryptoServiceError, CryptographyFrameworkError, ValueError) as exc:
-            messagebox.showerror("Eroare la decriptare", str(exc))
+            messagebox.showerror("Eroare la decriptare","Decriptarea a eșuat. Verifică dacă fișierul este criptat, dacă cheia și algoritmul sunt compatibile")
 
     def import_file_rapid(self):
         source_path = filedialog.askopenfilename(title="Selectează fișier")
@@ -675,12 +673,6 @@ class CryptoAppUI(tk.Tk):
             style="Action.TButton",
             command=self.show_performance_chart,
         ).pack(side="left", padx=5)
-        ttk.Button(
-            btn_frame,
-            text="💾 Export CSV",
-            style="Action.TButton",
-            command=self.export_perf_csv,
-        ).pack(side="left", padx=5)
 
     def show_performance_chart(self):
         import matplotlib.pyplot as plt
@@ -713,42 +705,43 @@ class CryptoAppUI(tk.Tk):
         win.title("Analiză Performanță")
         win.geometry("1180x760")
 
-        fig, axes = plt.subplots(2, 2, figsize=(13.2, 7.0))
-        ax1, ax2, ax3, ax4 = axes.flatten()
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.2, 5.5))
         fig.patch.set_facecolor(self.bg_main)
         x = range(len(labels))
 
-        bars1 = ax1.bar(x, avg_timp)
-        ax1.set_title("Timp mediu execuție (ms)", fontsize=12, fontweight="bold")
+        # Grafic 1 – timp per octet
+        bars1 = ax1.bar(x, avg_timp_octet)
+        ax1.set_title("Timp mediu per octet (ms/B)", fontsize=12, fontweight="bold")
         ax1.set_xticks(list(x))
         ax1.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
-        ax1.set_ylabel("ms")
-        for bar, val in zip(bars1, avg_timp):
-            ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.2f}", ha="center", va="bottom", fontsize=8)
+        ax1.set_ylabel("ms/B")
 
-        bars2 = ax2.bar(x, avg_mem)
-        ax2.set_title("Memorie medie utilizată (KB)", fontsize=12, fontweight="bold")
+        for bar, val in zip(bars1, avg_timp_octet):
+            ax1.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                f"{val:.6f}",
+                ha="center",
+                va="bottom",
+                fontsize=8
+            )
+
+        # Grafic 2 – memorie per octet
+        bars2 = ax2.bar(x, avg_mem_octet)
+        ax2.set_title("Memorie medie per octet (KB/B)", fontsize=12, fontweight="bold")
         ax2.set_xticks(list(x))
         ax2.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
-        ax2.set_ylabel("KB")
-        for bar, val in zip(bars2, avg_mem):
-            ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.2f}", ha="center", va="bottom", fontsize=8)
+        ax2.set_ylabel("KB/B")
 
-        bars3 = ax3.bar(x, avg_timp_octet)
-        ax3.set_title("Timp mediu per octet (ms/B)", fontsize=12, fontweight="bold")
-        ax3.set_xticks(list(x))
-        ax3.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
-        ax3.set_ylabel("ms/B")
-        for bar, val in zip(bars3, avg_timp_octet):
-            ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.6f}", ha="center", va="bottom", fontsize=8)
-
-        bars4 = ax4.bar(x, avg_mem_octet)
-        ax4.set_title("Memorie medie per octet (KB/B)", fontsize=12, fontweight="bold")
-        ax4.set_xticks(list(x))
-        ax4.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
-        ax4.set_ylabel("KB/B")
-        for bar, val in zip(bars4, avg_mem_octet):
-            ax4.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.6f}", ha="center", va="bottom", fontsize=8)
+        for bar, val in zip(bars2, avg_mem_octet):
+            ax2.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                f"{val:.6f}",
+                ha="center",
+                va="bottom",
+                fontsize=8
+            )
 
         fig.tight_layout(pad=3.0)
 
@@ -756,29 +749,4 @@ class CryptoAppUI(tk.Tk):
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True)
 
-    def export_perf_csv(self):
-        import csv
-
-        path = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV", "*.csv")],
-            title="Salvează CSV",
-        )
-        if not path:
-            return
-        perfs = self.perf_repo.get_all()
-        with open(path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["ID", "OperatieID", "Timp(ms)", "Memorie(KB)", "DimensiuneInput", "TimpPerOctet(ms/B)", "MemoriePerOctet(KB/B)", "Observatii"])
-            for p in perfs:
-                writer.writerow([
-                    p.id_performanta,
-                    p.id_operatie,
-                    f"{p.timp_executie_ms:.2f}",
-                    f"{p.memorie_kb:.2f}",
-                    p.dimensiune_input,
-                    f"{self._timp_per_octet(p):.6f}",
-                    f"{self._memorie_per_octet(p):.6f}",
-                    p.observatii or "",
-                ])
-        messagebox.showinfo("Export", f"Date exportate în:\n{path}")
+    
