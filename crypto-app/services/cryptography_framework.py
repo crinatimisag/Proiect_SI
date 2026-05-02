@@ -7,6 +7,7 @@ import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 from cryptography.hazmat.primitives import hashes, padding as symmetric_padding, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -42,6 +43,33 @@ class OpenSSLEngine:
             or shutil.which("openssl")
             or r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
         )
+        self.process_count = 0
+        self._process_overhead_ms: float | None = None
+
+    def reset_process_count(self) -> None:
+        self.process_count = 0
+
+    def process_overhead_ms(self) -> float:
+        if self._process_overhead_ms is not None:
+            return self._process_overhead_ms
+
+        times = []
+        for _ in range(5):
+            started = perf_counter()
+            try:
+                subprocess.run(
+                    [self.path, "version"],
+                    capture_output=True,
+                    check=False,
+                )
+            except FileNotFoundError as exc:
+                raise CryptographyFrameworkError(
+                    "OpenSSL nu a fost găsit. Instalează OpenSSL sau setează OPENSSL_PATH în config.py."
+                ) from exc
+            times.append((perf_counter() - started) * 1000.0)
+
+        self._process_overhead_ms = sum(times) / len(times)
+        return self._process_overhead_ms
 
     @contextmanager
     def _temp_file(self, data: bytes | None = None):
@@ -59,6 +87,7 @@ class OpenSSLEngine:
                 pass
 
     def _call_ssl(self, args: list[str]) -> bytes:
+        self.process_count += 1
         try:
             result = subprocess.run(
                 [self.path] + args,

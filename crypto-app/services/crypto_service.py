@@ -92,6 +92,8 @@ class CryptoService:
         plaintext = input_path.read_bytes()
 
         memory_before = self._current_memory_kb()
+        if use_ssl:
+            self.framework.openssl.reset_process_count()
         started = perf_counter()
         
         enc_res = self.framework.encrypt_bytes(
@@ -103,7 +105,7 @@ class CryptoService:
             password=cheie.nume_cheie
         )
         
-        elapsed_ms = (perf_counter() - started) * 1000.0
+        elapsed_ms = self._final_time_ms(started, use_ssl)
         memory_after = self._current_memory_kb()
 
         payload = self._pack_payload(
@@ -146,6 +148,8 @@ class CryptoService:
         mode, nonce, ciphertext, wrapped_key = self._unpack_payload(input_path.read_bytes())
 
         memory_before = self._current_memory_kb()
+        if use_ssl:
+            self.framework.openssl.reset_process_count()
         started = perf_counter()
         
         plaintext = self.framework.decrypt_bytes(
@@ -159,7 +163,7 @@ class CryptoService:
             password=cheie.nume_cheie
         )
         
-        elapsed_ms = (perf_counter() - started) * 1000.0
+        elapsed_ms = self._final_time_ms(started, use_ssl)
         memory_after = self._current_memory_kb()
 
         output_path = self._unique_path(self._build_decrypted_path(input_path.name))
@@ -186,6 +190,14 @@ class CryptoService:
         fr = self.framework_repo.get_by_id(framework_id) if framework_id else None
         nume_frame = fr.nume.lower() if fr else ""
         return "openssl" in nume_frame, "pycryptodome" in nume_frame
+
+    def _final_time_ms(self, started: float, use_ssl: bool) -> float:
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        if not use_ssl:
+            return elapsed_ms
+
+        overhead = self.framework.openssl.process_count * self.framework.openssl.process_overhead_ms()
+        return max(elapsed_ms - overhead, 0.0)
 
     def _save_operation(self, source_file, key, algorithm_id, framework_id, operation_type, output_path, elapsed_ms, memory_before, memory_after, input_size, observation) -> int:
         operatie = Operatie(
