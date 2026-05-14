@@ -3,6 +3,9 @@ import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from collections import defaultdict
 
 from database.repositories.algoritm_repository import AlgoritmRepository
 from database.repositories.cheie_repository import CheieRepository
@@ -675,78 +678,100 @@ class CryptoAppUI(tk.Tk):
         ).pack(side="left", padx=5)
 
     def show_performance_chart(self):
-        import matplotlib.pyplot as plt
-        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-        from collections import defaultdict
-
         perfs = self.perf_repo.get_all()
         if not perfs:
             messagebox.showinfo("Info", "Nu există date de performanță.")
             return
 
-        groups_timp = defaultdict(list)
-        groups_mem = defaultdict(list)
-        groups_timp_octet = defaultdict(list)
-        groups_mem_octet = defaultdict(list)
-        for p in perfs:
-            label = p.observatii or f"Op#{p.id_operatie}"
-            groups_timp[label].append(p.timp_executie_ms)
-            groups_mem[label].append(p.memorie_kb)
-            groups_timp_octet[label].append(self._timp_per_octet(p))
-            groups_mem_octet[label].append(self._memorie_per_octet(p))
+        # Format observatii: "cryptography / AES-256-GCM"
+        data_timp = defaultdict(lambda: defaultdict(list))
+        data_mem  = defaultdict(lambda: defaultdict(list))
 
-        labels = list(groups_timp.keys())
-        avg_timp = [sum(groups_timp[label]) / len(groups_timp[label]) for label in labels]
-        avg_mem = [sum(groups_mem[label]) / len(groups_mem[label]) for label in labels]
-        avg_timp_octet = [sum(groups_timp_octet[label]) / len(groups_timp_octet[label]) for label in labels]
-        avg_mem_octet = [sum(groups_mem_octet[label]) / len(groups_mem_octet[label]) for label in labels]
+        for p in perfs:
+            if not p.observatii or "/" not in p.observatii:
+                continue
+            parts      = p.observatii.split("/")
+            framework  = parts[0].strip()   # ex: "cryptography"
+            algoritm   = parts[1].strip()   # ex: "AES-256-GCM"
+            if p.dimensiune_input and p.dimensiune_input > 0:
+                data_timp[algoritm][framework].append(p.timp_executie_ms / p.dimensiune_input)
+                data_mem[algoritm][framework].append(p.memorie_kb / p.dimensiune_input)
+
+        if not data_timp:
+            messagebox.showinfo("Info", "Nu s-au putut parsa datele.")
+            return
+
+        algoritmi  = sorted(data_timp.keys())
+        n          = len(algoritmi)
+        fw_colors  = {
+            "cryptography":  "#3949ab",
+            "OpenSSL CLI":   "#e53935",
+            "PyCryptodome":  "#43a047",
+        }
 
         win = tk.Toplevel(self)
-        win.title("Analiză Performanță")
-        win.geometry("1180x760")
+        win.title("Performanta per Algoritm")
+        win.state("zoomed")  # fullscreen maximizat
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.2, 5.5))
-        fig.patch.set_facecolor(self.bg_main)
-        x = range(len(labels))
+        fig, axes = plt.subplots(2, n, figsize=(5 * n, 10))
+        fig.subplots_adjust(top=0.88, bottom=0.18, hspace=0.5, wspace=0.4)
+        fig.suptitle(
+            "Comparatie framework-uri per algoritm",
+            fontsize=15, fontweight="bold", y=0.97
+        )
 
-        # Grafic 1 – timp per octet
-        bars1 = ax1.bar(x, avg_timp_octet)
-        ax1.set_title("Timp mediu per octet (ms/B)", fontsize=12, fontweight="bold")
-        ax1.set_xticks(list(x))
-        ax1.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
-        ax1.set_ylabel("ms/B")
+        if n == 1:
+            axes = [[axes[0]], [axes[1]]]
 
-        for bar, val in zip(bars1, avg_timp_octet):
-            ax1.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height(),
-                f"{val:.6f}",
-                ha="center",
-                va="bottom",
-                fontsize=8
-            )
+        for col, algoritm in enumerate(algoritmi):
+            for row, (data_set, ylabel, title_suffix) in enumerate([
+                (data_timp, "ms / byte",  "Timp mediu per byte"),
+                (data_mem,  "KB / byte",  "Memorie medie per byte"),
+            ]):
+                ax = axes[row][col]
+                frameworks = sorted(data_set[algoritm].keys())
+                avg_values = [
+                    sum(data_set[algoritm][fw]) / len(data_set[algoritm][fw])
+                    for fw in frameworks
+                ]
+                bar_colors = [fw_colors.get(fw, "#78909c") for fw in frameworks]
+                bars       = ax.bar(frameworks, avg_values, color=bar_colors, width=0.5)
 
-        # Grafic 2 – memorie per octet
-        bars2 = ax2.bar(x, avg_mem_octet)
-        ax2.set_title("Memorie medie per octet (KB/B)", fontsize=12, fontweight="bold")
-        ax2.set_xticks(list(x))
-        ax2.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
-        ax2.set_ylabel("KB/B")
+                ax.set_title(f"{algoritm}\n{title_suffix}", fontsize=10,
+                            fontweight="bold", pad=10)
+                ax.set_ylabel(ylabel, fontsize=8)
+                ax.set_xticks(range(len(frameworks)))
+                ax.set_xticklabels(frameworks, rotation=25, ha="right", fontsize=8)
+                ax.yaxis.set_tick_params(labelsize=7)
+                ax.spines["top"].set_visible(False)
+                ax.spines["right"].set_visible(False)
 
-        for bar, val in zip(bars2, avg_mem_octet):
-            ax2.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height(),
-                f"{val:.6f}",
-                ha="center",
-                va="bottom",
-                fontsize=8
-            )
+                for bar, val in zip(bars, avg_values):
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() * 1.02,
+                        f"{val:.6f}",
+                        ha="center", va="bottom", fontsize=7.5, fontweight="bold"
+                    )
 
-        fig.tight_layout(pad=3.0)
+        # legenda comuna in partea de jos
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor="#3949ab", label="cryptography"),
+            Patch(facecolor="#e53935", label="OpenSSL CLI"),
+            Patch(facecolor="#43a047", label="PyCryptodome"),
+        ]
+        fig.legend(
+            handles=legend_elements,
+            loc="lower center",
+            ncol=3,
+            fontsize=10,
+            frameon=True,
+            bbox_to_anchor=(0.5, 0.01)
+        )
 
         canvas = FigureCanvasTkAgg(fig, master=win)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
 
-    
+
